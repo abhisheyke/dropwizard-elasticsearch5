@@ -11,6 +11,7 @@ import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.node.Node;
 
 import java.io.File;
+import java.io.IOException;
 import java.net.URISyntaxException;
 import java.net.URL;
 import java.nio.file.Path;
@@ -18,7 +19,11 @@ import java.nio.file.Paths;
 
 import static com.google.common.base.Preconditions.checkNotNull;
 import static com.google.common.base.Strings.isNullOrEmpty;
-import static org.elasticsearch.node.NodeBuilder.nodeBuilder;
+//import static org.elasticsearch.node.NodeBuilder.nodeBuilder;
+import org.elasticsearch.client.transport.*;
+import org.elasticsearch.node.NodeValidationException;
+import org.elasticsearch.transport.client.PreBuiltTransportClient;
+import sun.misc.JavaIOAccess;
 
 /**
  * A Dropwizard managed Elasticsearch {@link Client}. Depending on the {@link EsConfiguration} a Node Client or
@@ -38,7 +43,7 @@ public class ManagedEsClient implements Managed {
      *
      * @param config a valid {@link EsConfiguration} instance
      */
-    public ManagedEsClient(final EsConfiguration config) {
+    public ManagedEsClient(final EsConfiguration config) throws IOException {
         checkNotNull(config, "EsConfiguration must not be null");
 
         final Settings.Builder settingsBuilder = Settings.builder();
@@ -60,16 +65,22 @@ public class ManagedEsClient implements Managed {
                 .put("cluster.name", config.getClusterName())
                 .build();
 
+
+
+
         if (config.isNodeClient()) {
-            this.node = nodeBuilder()
-                    .client(true)
-                    .data(false)
-                    .settings(settings)
-                    .build();
-            this.client = this.node.client();
+//            this.node = nodeBuilder()
+//                    .client(true)
+//                    .data(false)
+//                    .settings(settings)
+//                    .build();
+//            this.client = this.node.client();
+
+            this.node = new Node(settings);
+            throw new UnsupportedOperationException("Node client is not supported.");
         } else {
             final TransportAddress[] addresses = TransportAddressHelper.fromHostAndPorts(config.getServers());
-            this.client = TransportClient.builder().settings(settings).build().addTransportAddresses(addresses);
+            this.client = new PreBuiltTransportClient(settings).addTransportAddresses(addresses);
         }
     }
 
@@ -124,7 +135,7 @@ public class ManagedEsClient implements Managed {
         return client;
     }
 
-    private Node startNode() {
+    private Node startNode() throws NodeValidationException {
         if (null != node) {
             return node.start();
         }
@@ -132,7 +143,7 @@ public class ManagedEsClient implements Managed {
         return null;
     }
 
-    private void closeNode() {
+    private void closeNode() throws IOException {
         if (null != node && !node.isClosed()) {
             node.close();
         }
